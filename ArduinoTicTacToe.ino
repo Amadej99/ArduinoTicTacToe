@@ -1,6 +1,6 @@
 #define VRX_PIN A0 // Arduino pin connected to VRX pin
 #define VRY_PIN A1 // Arduino pin connected to VRY pin
-#define SW_PIN 13  // Arduino pin connected to SW pin
+#define SW_PIN 18  // Arduino pin connected to SW pin
 
 #include <Button.h>
 
@@ -62,7 +62,7 @@ void moveToFreeSpot(enum direction currentDirection)
   // Potrebno je ugasniti trenutno LED diodo preden se premaknemo
   if (arrayStatus[i][j] == NONE)
   {
-    currentState == FIRST ? digitalWrite(LEDs[i][j], LOW) : digitalWrite(LEDs[i][j + 1], LOW);
+    currentState == FIRST ? digitalWrite(LEDs[i][j * 2], LOW) : digitalWrite(LEDs[i][j * 2 + 1], LOW);
   }
 
   // Se izvaja dokler ne najdemo proste LED diode
@@ -104,14 +104,14 @@ void moveToFreeSpot(enum direction currentDirection)
     }
 
     // Preveri ali je trenutna pozicija znotraj mreze in ali je LED dioda ugasnjena
-    if (i >= 0 && i <= 2 && j >= 0 && j <= 2 && arrayStatus[i][j] == NONE)
+    if (i >= 0 && i <= 2 && j >= 0 && j <= 3 && arrayStatus[i][j] == NONE)
     {
       break; // Izstopi, ce je, saj smo nasli iskano pozicijo.
     }
   }
 
   // Zacni z utripanjem trenutne LED diode
-  currentState == FIRST ? digitalWrite(LEDs[i][j], HIGH) : digitalWrite(LEDs[i][j + 1], HIGH);
+  currentState == FIRST ? digitalWrite(LEDs[i][j * 2], HIGH) : digitalWrite(LEDs[i][j * 2 + 1], HIGH);
 }
 
 void setup()
@@ -140,9 +140,9 @@ void loop()
   {
     previousMillis = currentMillis;
     if (currentState == FIRST)
-      digitalWrite(LEDs[i][j], !digitalRead(LEDs[i][j]));
+      digitalWrite(LEDs[i][j * 2], !digitalRead(LEDs[i][j * 2]));
     else
-      digitalWrite(LEDs[i][j + 1], !digitalRead(LEDs[i][j + 1]));
+      digitalWrite(LEDs[i][j * 2 + 1], !digitalRead(LEDs[i][j * 2 + 1]));
   }
 
   // Preveri, ce je prekel interval za branje iz joysticka
@@ -179,7 +179,7 @@ void readJoystick()
   // Preveri ali je igralec zmagal ali je mreza polna (neodlocen izzid)
   if (button.pressed())
   {
-    currentState == FIRST ? digitalWrite(LEDs[i][j], HIGH) : digitalWrite(LEDs[i][j + 1], HIGH);
+    currentState == FIRST ? digitalWrite(LEDs[i][j * 2], HIGH) : digitalWrite(LEDs[i][j * 2 + 1], HIGH);
     arrayStatus[i][j] = currentState;
 
     if (checkWin(currentState))
@@ -229,15 +229,17 @@ void reset()
 {
   for (int i = 0; i < 3; i++)
   {
-    for (int j = 0; j < 6; j++)
+    for (int j = 0; j < 3; j++)
     {
       arrayStatus[i][j] = NONE;
-      digitalWrite(LEDs[i][j], LOW);
+      digitalWrite(LEDs[i][j * 2], LOW);
+      digitalWrite(LEDs[i][j * 2 + 1], LOW);
     }
   }
   i = 0;
   j = 0;
   currentState = FIRST;
+  loop();
 }
 
 // Preveri, ce je igralec zmagal
@@ -247,13 +249,26 @@ bool checkWin(states player)
   // Preveri vrstice in stolpce
   for (int i = 0; i < 3; i++)
   {
+    // Preveri vrstice
     if (arrayStatus[i][0] == player && arrayStatus[i][1] == player && arrayStatus[i][2] == player)
     {
+      int winningLEDs[3];
+      for (int j = 0; j < 3; j++)
+      {
+        winningLEDs[j] = currentState == FIRST ? LEDs[i][j * 2] : LEDs[i][j * 2 + 1];
+      }
       return true;
     }
 
+    // Preveri stolpce
     if (arrayStatus[0][i] == player && arrayStatus[1][i] == player && arrayStatus[2][i] == player)
     {
+      int winningLEDs[3];
+      for (int j = 0; j < 3; j++)
+      {
+        winningLEDs[j] = currentState == FIRST ? LEDs[j][i * 2] : LEDs[j][i * 2 + 1];
+      }
+      blinkWinningLEDs(winningLEDs);
       return true;
     }
   }
@@ -261,14 +276,44 @@ bool checkWin(states player)
   // Preveri diagonali
   if (arrayStatus[0][0] == player && arrayStatus[1][1] == player && arrayStatus[2][2] == player)
   {
+    int winningLEDs[3];
+    for (int j = 0; j < 3; j++)
+    {
+      winningLEDs[j] = currentState == FIRST ? LEDs[j][j * 2] : LEDs[j][j * 2 + 1];
+    }
+    blinkWinningLEDs(winningLEDs);
     return true;
   }
 
   if (arrayStatus[0][2] == player && arrayStatus[1][1] == player && arrayStatus[2][0] == player)
   {
+    int winningLEDs[3];
+    for (int j = 0; j < 3; j++)
+    {
+      winningLEDs[j] = currentState == FIRST ? LEDs[j][2 * (2 - j)] : LEDs[j][2 * (2 - j) + 1];
+    }
+    blinkWinningLEDs(winningLEDs);
     return true;
   }
 
   // Ni zmagovalca
   return false;
+}
+
+void blinkWinningLEDs(int LEDs[])
+{
+  reset();
+  for (int k = 0; k < 3; k++)
+  {
+    for (int i = 0; i < 3; i++)
+    {
+      digitalWrite(LEDs[i], HIGH);
+    }
+    delay(1000);
+    for (int i = 0; i < 3; i++)
+    {
+      digitalWrite(LEDs[i], LOW);
+    }
+    delay(1000);
+  }
 }
