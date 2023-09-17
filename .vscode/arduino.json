@@ -1,5 +1,5 @@
 {
-    "board": "arduino:avr:uno",
-    "port": "COM4",
+    "board": "arduino:avr:megaADK",
+    "port": "COM5",
     "sketch": "ArduinoTicTacToe.ino"
 }
