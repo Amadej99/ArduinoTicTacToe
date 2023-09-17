@@ -1,8 +1,9 @@
-#define VRX_PIN A0 // Arduino pin connected to VRX pin
-#define VRY_PIN A1 // Arduino pin connected to VRY pin
-#define SW_PIN 18  // Arduino pin connected to SW pin
-
 #include <Button.h>
+
+#define VRX_PIN A0 // Arduino pin povezan na X os
+#define VRY_PIN A1 // Arduino pin povezan na Y os
+#define SW_PIN 18  // Arduino pin povezan na gumb
+Button button(SW_PIN);
 
 // POTEZA
 enum states
@@ -33,9 +34,6 @@ enum axis
 // PINi LED LUCK
 int LEDs[][6] = {{0, 1, 2, 3, 4, 5}, {6, 7, 8, 9, 10, 11}, {12, 13, 14, 15, 16, 17}};
 
-// PIN GUMBA NA JOYSTICKU
-Button button(SW_PIN);
-
 // STANJE MREZE 3x3
 states arrayStatus[][3] = {{NONE, NONE, NONE}, {NONE, NONE, NONE}, {NONE, NONE, NONE}};
 
@@ -51,6 +49,98 @@ const long interval = 1000;       // Interval utripanja v ms
 
 unsigned long joystickPreviousMillis = 0; // Shrani zadnje branje iz joysticka
 const long joystickInterval = 100;        // Zakasnitev med naslednjim branjem joysticka v ms
+
+void setup()
+{
+  // INICIALIZACIJA VSEH 18 DIGITALNIH PINOV
+  for (int i = 0; i < 3; i++)
+  {
+    for (int j = 0; j < 6; j++)
+    {
+      pinMode(LEDs[i][j], OUTPUT);
+      digitalWrite(LEDs[i][j], LOW);
+    }
+  }
+
+  button.begin();
+}
+
+void loop()
+{
+  // Preveri, ce je LED dioda prizgana ali ugasnjena enako ali dlje kot doloceni interval.
+  // Ce je, jo preklopi glede na igralca na potezi
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval)
+  {
+    previousMillis = currentMillis;
+    if (currentState == FIRST)
+      digitalWrite(LEDs[i][j * 2], !digitalRead(LEDs[i][j * 2]));
+    else
+      digitalWrite(LEDs[i][j * 2 + 1], !digitalRead(LEDs[i][j * 2 + 1]));
+  }
+
+  // Preveri, ce je pretekel interval za branje iz joysticka
+  // Ce je, ga preberi
+  unsigned long joystickCurrentMillis = millis();
+  if (joystickCurrentMillis - joystickPreviousMillis >= joystickInterval)
+  {
+    joystickPreviousMillis = joystickCurrentMillis;
+    readJoystick();
+  }
+}
+
+// Interpretiraj prebrano vrednost iz joysticka
+// Meje nastavimo na nedvoumno vrednost, da je interpretacija zanesljiva
+enum direction interpretValue(int value, enum axis currentAxis)
+{
+  if (value > 900)
+    return currentAxis == X ? RIGHT : DOWN;
+  if (value < 100)
+    return currentAxis == X ? LEFT : UP;
+  return STILL;
+}
+
+// Preberi vrednost iz joysticka in preveri, ce je bila pritisnjena tipka
+void readJoystick()
+{
+  // Preberi in interpretiraj prebrano vrednost
+  enum direction xValue = interpretValue(analogRead(VRX_PIN), X);
+  enum direction yValue = interpretValue(analogRead(VRY_PIN), Y);
+  // Preberi gumb
+  button.read();
+
+  // Ce je gumb pritisnjen, prizgi LED diodo igralca na potezi
+  // Preveri ali je igralec zmagal ali je mreza polna (neodlocen izzid)
+  if (button.pressed())
+  {
+    currentState == FIRST ? digitalWrite(LEDs[i][j * 2], HIGH) : digitalWrite(LEDs[i][j * 2 + 1], HIGH);
+    arrayStatus[i][j] = currentState;
+
+    if (checkWin(currentState))
+    {
+      reset();
+    }
+    else if (checkFull())
+    {
+      reset();
+    }
+    else
+    {
+      // Ce nihce ni zmagal, mreza pa ni polna, je na vrsti naslednji igralec
+      currentState = (currentState == FIRST) ? SECOND : FIRST;
+      // Pomaknemo se na zacetno LED diodo in najdemo naslednje prosto mesto
+      i = 0;
+      j = 0;
+      if (arrayStatus[i][j] != NONE)
+        moveToFreeSpot(RIGHT);
+      return;
+    }
+  }
+
+  // Premaknemo se na izbrano LED diodo
+  moveToFreeSpot(xValue);
+  moveToFreeSpot(yValue);
+}
 
 // Funkcija najde naslednjo prosto LED diodo v mrezi
 void moveToFreeSpot(enum direction currentDirection)
@@ -114,99 +204,6 @@ void moveToFreeSpot(enum direction currentDirection)
   currentState == FIRST ? digitalWrite(LEDs[i][j * 2], HIGH) : digitalWrite(LEDs[i][j * 2 + 1], HIGH);
 }
 
-void setup()
-{
-  // Serial.begin(9600);
-
-  // INICIALIZACIJA VSEH 18 DIGITALNIH PINOV
-  for (int i = 0; i < 3; i++)
-  {
-    for (int j = 0; j < 6; j++)
-    {
-      pinMode(LEDs[i][j], OUTPUT);
-      digitalWrite(LEDs[i][j], LOW);
-    }
-  }
-
-  button.begin();
-}
-
-void loop()
-{
-  // Preveri, ce je LED dioda prizgana ali ugasnjena enako ali dlje kot doloceni interval.
-  // Ce je, jo preklopi glede na igralca na potezi
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval)
-  {
-    previousMillis = currentMillis;
-    if (currentState == FIRST)
-      digitalWrite(LEDs[i][j * 2], !digitalRead(LEDs[i][j * 2]));
-    else
-      digitalWrite(LEDs[i][j * 2 + 1], !digitalRead(LEDs[i][j * 2 + 1]));
-  }
-
-  // Preveri, ce je prekel interval za branje iz joysticka
-  // Ce je, ga preberi
-  unsigned long joystickCurrentMillis = millis();
-  if (joystickCurrentMillis - joystickPreviousMillis >= joystickInterval)
-  {
-    joystickPreviousMillis = joystickCurrentMillis;
-    readJoystick();
-  }
-}
-
-// Interpretiraj prebrano vrednost iz joysticka
-// Meje nastavimo na nedvoumno vrednost, da je interpretacija zanesljiva
-enum direction interpretValue(int value, enum axis currentAxis)
-{
-  if (value > 800)
-    return currentAxis == X ? RIGHT : DOWN;
-  if (value < 200)
-    return currentAxis == X ? LEFT : UP;
-  return STILL;
-}
-
-// Preberi vrednost iz joysticka in preveri, ce je bila pritisnjena tipka
-void readJoystick()
-{
-  // Preberi in interpretiraj prebrano vrednost
-  enum direction xValue = interpretValue(analogRead(VRX_PIN), X);
-  enum direction yValue = interpretValue(analogRead(VRY_PIN), Y);
-  // Preberi gumb
-  button.read();
-
-  // Ce je gumb pritisnjen, prizgi LED diodo igralca na potezi
-  // Preveri ali je igralec zmagal ali je mreza polna (neodlocen izzid)
-  if (button.pressed())
-  {
-    currentState == FIRST ? digitalWrite(LEDs[i][j * 2], HIGH) : digitalWrite(LEDs[i][j * 2 + 1], HIGH);
-    arrayStatus[i][j] = currentState;
-
-    if (checkWin(currentState))
-    {
-      reset();
-    }
-    else if (checkFull())
-    {
-      reset();
-    }
-    else
-    {
-      // Ce nihce ni zmagal, mreza pa ni polna, je na vrsti naslednji igralec
-      currentState = (currentState == FIRST) ? SECOND : FIRST;
-      // Pomaknemo se na zacetno LED diodo in najdemo naslednje prosto mesto
-      i = 0;
-      j = 0;
-      moveToFreeSpot(RIGHT);
-      return;
-    }
-  }
-
-  // Premaknemo se na izbrano LED diodo
-  moveToFreeSpot(xValue);
-  moveToFreeSpot(yValue);
-}
-
 // Preveri, ce je mreza polna
 // Pristop mogoce ni najboljsi, saj se izvaja v O(n^2), vendar je mreza dovolj majhna, da to ni problem
 bool checkFull()
@@ -257,6 +254,7 @@ bool checkWin(states player)
       {
         winningLEDs[j] = currentState == FIRST ? LEDs[i][j * 2] : LEDs[i][j * 2 + 1];
       }
+      blinkWinningLEDs(winningLEDs);
       return true;
     }
 
@@ -300,6 +298,7 @@ bool checkWin(states player)
   return false;
 }
 
+// Utripaj zmagovalno kombinacijo
 void blinkWinningLEDs(int LEDs[])
 {
   reset();
